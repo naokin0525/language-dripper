@@ -125,6 +125,18 @@
                         <label for="syllable-structure">音節構造 (カンマ区切り)</label>
                         <input type="text" id="syllable-structure" value="CV,V,CVC">
                     </div>
+                    <!-- Tones Section -->
+                    <div class="flex flex-col gap-2">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="tones-enabled">
+                            <span>声調を有効化</span>
+                        </label>
+                        <div id="tones-controls" class="pl-6 hidden">
+                             <label for="tones-count">声調の数 (2-9)</label>
+                             <input type="range" id="tones-count" min="2" max="9" value="3" class="w-full">
+                             <span id="tones-count-value" class="text-sm">3</span>
+                        </div>
+                    </div>
                     <!-- Phonological rules (simplified for this example) -->
                     <div>
                         <label>音韻変化ルール (例: n > m / _p)</label>
@@ -145,6 +157,10 @@
                     <div>
                         <label for="lexicon-size">生成する語根の数</label>
                         <input type="number" id="lexicon-size" value="100" min="10" max="1000" class="w-full">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="loanwords-enabled">
+                        <label for="loanwords-enabled">借用語をシミュレート</label>
                     </div>
                     <button id="generate-lexicon" class="btn btn-primary">語彙を生成</button>
                 </div>
@@ -177,6 +193,21 @@
                         <label for="irregularity-rate">不規則性 (0-20%)</label>
                         <input type="range" id="irregularity-rate" min="0" max="20" value="5" class="w-full">
                         <span id="irregularity-rate-value" class="text-sm">5%</span>
+                    </div>
+                    <!-- Nominal Categories -->
+                    <div>
+                        <label>名詞の文法性</label>
+                        <div class="flex gap-4">
+                            <label><input type="radio" name="grammatical-gender" value="none" checked> なし</label>
+                            <label><input type="radio" name="grammatical-gender" value="mf"> 男性/女性</label>
+                            <label><input type="radio" name="grammatical-gender" value="mfn"> 男性/女性/中性</label>
+                        </div>
+                    </div>
+                     <div>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="gender-agreement">
+                            <span>性の一致を有効化</span>
+                        </label>
                     </div>
                     <!-- Derivational Morphology (simplified) -->
                     <div>
@@ -220,6 +251,7 @@
                                 <th>ローマ字</th>
                                 <th>品詞</th>
                                 <th>意味</th>
+                                <th>文法性</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -241,16 +273,25 @@ document.addEventListener('DOMContentLoaded', () => {
             vowels: [],
             syllableStructures: [],
             phonologicalRules: [],
+            tones: {
+                enabled: false,
+                count: 3,
+            }
         },
         lexicon: {
             semanticFields: [],
             rootCount: 100,
+            loanwords: {
+                enabled: false,
+            }
         },
         morphoSyntax: {
             wordOrder: 'SOV',
             caseMarking: 'suffix',
             irregularityRate: 0.05,
             derivationalMorphemes: [],
+            grammaticalGender: 'none',
+            genderAgreement: false,
         },
         generated: {
             dictionary: [],
@@ -270,14 +311,21 @@ document.addEventListener('DOMContentLoaded', () => {
             consonants: document.getElementById('consonants'),
             vowels: document.getElementById('vowels'),
             syllableStructure: document.getElementById('syllable-structure'),
+            tonesEnabled: document.getElementById('tones-enabled'),
+            tonesControls: document.getElementById('tones-controls'),
+            tonesCount: document.getElementById('tones-count'),
+            tonesCountValue: document.getElementById('tones-count-value'),
             phonologyRulesList: document.getElementById('phonology-rules-list'),
             addPhonologyRuleBtn: document.getElementById('add-phonology-rule'),
             presetBtns: document.querySelectorAll('[data-preset]'),
             semanticFields: document.getElementById('semantic-fields'),
             lexiconSize: document.getElementById('lexicon-size'),
+            loanwordsEnabled: document.getElementById('loanwords-enabled'),
             generateLexiconBtn: document.getElementById('generate-lexicon'),
             wordOrder: document.getElementById('word-order'),
             caseMarking: document.querySelectorAll('input[name="case-marking"]'),
+            grammaticalGender: document.querySelectorAll('input[name="grammatical-gender"]'),
+            genderAgreement: document.getElementById('gender-agreement'),
             irregularityRate: document.getElementById('irregularity-rate'),
             irregularityRateValue: document.getElementById('irregularity-rate-value'),
             derivationalMorphemesList: document.getElementById('derivational-morphemes-list'),
@@ -304,7 +352,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ipaToRomanMap: {
             'p': 'p', 't': 't', 'k': 'k', 'b': 'b', 'd': 'd', 'g': 'g', 'm': 'm', 'n': 'n',
             's': 's', 'z': 'z', 'h': 'h', 'r': 'r', 'j': 'y', 'w': 'w', 'a': 'a', 'i': 'i',
-            'u': 'u', 'e': 'e', 'o': 'o', 'ʃ': 'sh', 'ʧ': 'ch', 'ʤ': 'j', 'ŋ': 'ng', 'θ': 'th', 'ð': 'dh'
+            'u': 'u', 'e': 'e', 'o': 'o', 'ʃ': 'sh', 'ʧ': 'ch', 'ʤ': 'j', 'ŋ': 'ng', 'θ': 'th', 'ð': 'dh',
+            '¹':'¹', '²':'²', '³':'³', '⁴':'⁴', '⁵':'⁵', '⁶':'⁶', '⁷':'⁷', '⁸':'⁸', '⁹':'⁹'
         },
 
         romanize(ipaStr) {
@@ -312,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         generateWord() {
-            const { consonants, vowels, syllableStructures } = languageState.phonology;
+            const { consonants, vowels, syllableStructures, tones } = languageState.phonology;
             if (consonants.length === 0 || vowels.length === 0 || syllableStructures.length === 0) return null;
 
             const structure = syllableStructures[Math.floor(Math.random() * syllableStructures.length)];
@@ -324,7 +373,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     word += vowels[Math.floor(Math.random() * vowels.length)];
                 }
             }
-            return this.applyPhonologicalRules(word);
+
+            let finalWord = this.applyPhonologicalRules(word);
+
+            if (tones.enabled) {
+                const tone = Math.floor(Math.random() * tones.count) + 1;
+                const toneMarker = String.fromCodePoint(0x2070 + tone) // Superscript numbers ¹,²,³...
+                finalWord += toneMarker;
+            }
+            return finalWord;
         },
 
         applyPhonologicalRules(word) {
@@ -354,6 +411,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             return newWord;
+        },
+
+        // --- Loanword Simulation ---
+        sourceLoanwords: ['computer', 'internet', 'phone', 'radio', 'television', 'music', 'art', 'game', 'food', 'water'],
+
+        // A very simplified mapping of English-like sounds to the nearest available phoneme.
+        assimilate(word) {
+            const { consonants, vowels } = languageState.phonology;
+            if (consonants.length === 0 || vowels.length === 0) return word; // Cannot adapt
+
+            const soundMap = {
+                // Approximate consonant mappings (can be expanded)
+                'p': consonants.includes('p') ? 'p' : consonants[0],
+                'b': consonants.includes('b') ? 'b' : consonants.includes('p') ? 'p' : consonants[0],
+                't': consonants.includes('t') ? 't' : consonants[0],
+                'd': consonants.includes('d') ? 'd' : consonants.includes('t') ? 't' : consonants[0],
+                'k': consonants.includes('k') ? 'k' : consonants[0],
+                'g': consonants.includes('g') ? 'g' : consonants.includes('k') ? 'k' : consonants[0],
+                'f': consonants.includes('f') ? 'f' : consonants.includes('p') ? 'p' : consonants[0],
+                'v': consonants.includes('v') ? 'v' : consonants.includes('b') ? 'b' : consonants[0],
+                's': consonants.includes('s') ? 's' : consonants[0],
+                'z': consonants.includes('z') ? 'z' : consonants.includes('s') ? 's' : consonants[0],
+                'm': consonants.includes('m') ? 'm' : 'n',
+                'n': consonants.includes('n') ? 'n' : 'm',
+                'l': consonants.includes('l') ? 'l' : consonants.includes('r') ? 'r' : vowels[0],
+                'r': consonants.includes('r') ? 'r' : consonants.includes('l') ? 'l' : vowels[0],
+                'h': consonants.includes('h') ? 'h' : '',
+                // Approximate vowel mappings
+                'a': vowels.includes('a') ? 'a' : vowels[0],
+                'e': vowels.includes('e') ? 'e' : vowels.includes('i') ? 'i' : vowels[0],
+                'i': vowels.includes('i') ? 'i' : vowels[0],
+                'o': vowels.includes('o') ? 'o' : vowels.includes('u') ? 'u' : vowels[0],
+                'u': vowels.includes('u') ? 'u' : vowels[0],
+            };
+
+            return Array.from(word.toLowerCase()).map(char => soundMap[char] || '').join('');
         }
     };
 
@@ -362,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     const Lexicon = {
         generate() {
-            const { rootCount, semanticFields } = languageState.lexicon;
+            const { rootCount, semanticFields, loanwords } = languageState.lexicon;
             const newDictionary = [];
             const pos = ['noun', 'verb', 'adjective'];
 
@@ -373,23 +466,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 const roman = Phonology.romanize(ipa);
                 const wordPos = pos[Math.floor(Math.random() * pos.length)];
                 const meaning = semanticFields[Math.floor(Math.random() * semanticFields.length)];
+                const word = { ipa: `/${ipa}/`, roman, pos: wordPos, meaning, gender: null };
 
-                newDictionary.push({ ipa: `/${ipa}/`, roman, pos: wordPos, meaning });
+                // Assign gender to nouns if a gender system is active
+                if (word.pos === 'noun' && languageState.morphoSyntax.grammaticalGender !== 'none') {
+                    const genders = languageState.morphoSyntax.grammaticalGender === 'mf' ? ['masculine', 'feminine'] : ['masculine', 'feminine', 'neuter'];
+                    word.gender = genders[Math.floor(Math.random() * genders.length)];
+                }
+
+                newDictionary.push(word);
             }
 
             // Apply derivational morphology
             const derivedWords = [];
+            const { irregularityRate } = languageState.morphoSyntax;
             languageState.morphoSyntax.derivationalMorphemes.forEach(morpheme => {
                 newDictionary.forEach(word => {
                      // Simple logic: apply derivation to a subset of words
                     if (Math.random() < 0.3) {
-                         const newWord = MorphoSyntax.applyDerivation(word, morpheme);
-                         if(newWord) derivedWords.push(newWord);
+                        // Check for irregularity
+                        if (Math.random() < irregularityRate) {
+                            // Apply a simple irregular change: substitute a random vowel
+                            const vowels = languageState.phonology.vowels;
+                            if (vowels.length > 0) {
+                                const baseIpa = word.ipa.slice(1, -1);
+                                const randomVowel = vowels[Math.floor(Math.random() * vowels.length)];
+                                // Replace the last vowel with a random one
+                                const lastVowelIndex = Array.from(baseIpa).map((c, i) => vowels.includes(c) ? i : -1).filter(i => i !== -1).pop();
+                                if (lastVowelIndex !== undefined) {
+                                    let newIpa = Array.from(baseIpa);
+                                    newIpa[lastVowelIndex] = randomVowel;
+                                    newIpa = newIpa.join('');
+
+                                    const newWord = {
+                                        ipa: `/${newIpa}/`,
+                                        roman: Phonology.romanize(newIpa),
+                                        pos: morpheme.func, // Still fulfills the function
+                                        meaning: `${word.meaning} (irregular ${morpheme.func})`,
+                                        gender: word.gender
+                                    };
+                                    derivedWords.push(newWord);
+                                }
+                            }
+                        } else {
+                            // Apply regular derivation
+                            const newWord = MorphoSyntax.applyDerivation(word, morpheme);
+                            if(newWord) derivedWords.push(newWord);
+                        }
                     }
                 });
             });
 
             languageState.generated.dictionary = [...newDictionary, ...derivedWords];
+
+            // Add loanwords if enabled
+            if (loanwords.enabled) {
+                const loanwordCount = Math.max(1, Math.floor(rootCount * 0.05)); // Add ~5% loanwords
+                for (let i = 0; i < loanwordCount; i++) {
+                    const sourceWord = Phonology.sourceLoanwords[Math.floor(Math.random() * Phonology.sourceLoanwords.length)];
+                    const assimilatedIpa = Phonology.assimilate(sourceWord);
+                    if (assimilatedIpa && !languageState.generated.dictionary.some(w => w.roman === assimilatedIpa)) {
+                        languageState.generated.dictionary.push({
+                            ipa: `/${assimilatedIpa}/`,
+                            roman: Phonology.romanize(assimilatedIpa),
+                            pos: 'noun', // Most loanwords are nouns initially
+                            meaning: `${sourceWord} (loanword)`,
+                            gender: null
+                        });
+                    }
+                }
+            }
         }
     };
 
@@ -416,44 +562,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
         generateSentence() {
             const { dictionary } = languageState.generated;
+            const { genderAgreement, grammaticalGender, wordOrder, caseMarking } = languageState.morphoSyntax;
+
             const nouns = dictionary.filter(w => w.pos === 'noun');
             const verbs = dictionary.filter(w => w.pos === 'verb');
             if (nouns.length < 2 || verbs.length < 1) return "辞書に単語が不足しています。";
 
-            const subject = nouns[Math.floor(Math.random() * nouns.length)];
-            let object = nouns[Math.floor(Math.random() * nouns.length)];
-            while (object === subject) { // Ensure subject and object are different
-                 object = nouns[Math.floor(Math.random() * nouns.length)];
+            const subject = { ...nouns[Math.floor(Math.random() * nouns.length)] };
+            let object = { ...nouns[Math.floor(Math.random() * nouns.length)] };
+            while (object.roman === subject.roman) {
+                 object = { ...nouns[Math.floor(Math.random() * nouns.length)] };
             }
-            const verb = verbs[Math.floor(Math.random() * verbs.length)];
+            const verb = { ...verbs[Math.floor(Math.random() * verbs.length)] };
 
+            // --- Adjective Agreement Logic ---
+            const adjectives = [{base: "larg", meaning: "big"}, {base: "small", meaning: "small"}];
+            const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+            let subjectAdjective = "";
+            let humanAdjective = "";
+
+            if (genderAgreement && grammaticalGender !== 'none' && subject.gender) {
+                humanAdjective = `${adjective.meaning} `;
+                let suffix = '';
+                if (subject.gender === 'masculine') suffix = 'o';
+                else if (subject.gender === 'feminine') suffix = 'a';
+                else if (subject.gender === 'neuter') suffix = 'e';
+                subjectAdjective = Phonology.romanize(adjective.base) + (suffix ? '-' + suffix : '');
+            }
+
+            // --- Case Marking Logic ---
             const { subjectMarker, objectMarker, verbTense } = languageState.generated.grammar;
-            const { wordOrder, caseMarking } = languageState.morphoSyntax;
 
-            let s, o, v;
+            let s_final = (subjectAdjective ? subjectAdjective + " " : "") + subject.roman;
+            let o_final = object.roman;
 
             switch (caseMarking) {
                 case 'suffix':
-                    s = subject.roman + '-' + subjectMarker;
-                    o = object.roman + '-' + objectMarker;
-                    v = verb.roman + '-' + verbTense;
+                    s_final = s_final + '-' + subjectMarker;
+                    o_final = o_final + '-' + objectMarker;
                     break;
                 case 'prefix':
-                    s = subjectMarker + '-' + subject.roman;
-                    o = objectMarker + '-' + object.roman;
-                    v = verb.roman + '-' + verbTense; // Tense is usually a suffix
+                    s_final = subjectMarker + '-' + s_final;
+                    o_final = objectMarker + '-' + o_final;
                     break;
                 case 'postposition':
-                    s = subject.roman + ' ' + subjectMarker;
-                    o = object.roman + ' ' + objectMarker;
-                    v = verb.roman + ' ' + verbTense;
+                    s_final = s_final + ' ' + subjectMarker;
+                    o_final = o_final + ' ' + objectMarker;
                     break;
             }
+            const v_final = verb.roman + '-' + verbTense;
 
-            const components = { S: s, O: o, V: v };
+            const components = { S: s_final, O: o_final, V: v_final };
             const orderedSentence = wordOrder.split('').map(c => components[c]).join(' ');
 
-            return `${orderedSentence}. ('${subject.meaning}' ${object.meaning} ${verb.meaning})`;
+            return `${orderedSentence}. ('The ${humanAdjective}${subject.meaning} ${verb.meaning} the ${object.meaning}')`;
         }
     };
 
@@ -474,16 +636,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Bind all event listeners to their handlers
             Object.keys(UI.controls).forEach(key => {
                 const el = UI.controls[key];
-                // Check if el is a single element with a nodeName
-                if (el && el.nodeName) {
-                    if (el.nodeName === 'TEXTAREA' || el.nodeName === 'SELECT' ||
-                        (el.nodeName === 'INPUT' && (el.type === 'text' || el.type === 'number' || el.type === 'range'))) {
-                        el.addEventListener('input', this.handleInputChange);
-                    }
-                }
-                // Check if el is a NodeList (for radio buttons or preset buttons)
-                else if (el && el.length > 0) {
-                    el.forEach(item => {
+                if (!el) return;
+
+                // Handle NodeLists (radio buttons, presets)
+                if (el.length > 0) {
+                     el.forEach(item => {
                         if (item.type === 'radio') {
                              item.addEventListener('change', this.handleInputChange);
                         } else if (item.dataset.preset) {
@@ -491,8 +648,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+                // Handle single elements
+                else if (el.nodeName) {
+                    const eventType = (el.type === 'checkbox' || el.type === 'radio') ? 'change' : 'input';
+                    if (el.nodeName === 'TEXTAREA' || el.nodeName === 'SELECT' || el.nodeName === 'INPUT') {
+                        el.addEventListener(eventType, this.handleInputChange);
+                    }
+                }
             });
 
+            // Specific handlers
+            UI.controls.tonesEnabled.addEventListener('change', this.handleTonesToggle);
+            UI.controls.tonesCount.addEventListener('input', this.handleTonesToggle);
             UI.controls.generateLexiconBtn.addEventListener('click', this.handleGenerateLexicon);
             UI.controls.addPhonologyRuleBtn.addEventListener('click', () => this.addDynamicInput('phonologyRule'));
             UI.controls.addMorphemeBtn.addEventListener('click', () => this.addDynamicInput('morpheme'));
@@ -506,10 +673,15 @@ document.addEventListener('DOMContentLoaded', () => {
             languageState.phonology.consonants = UI.controls.consonants.value.trim().split(/\s+/);
             languageState.phonology.vowels = UI.controls.vowels.value.trim().split(/\s+/);
             languageState.phonology.syllableStructures = UI.controls.syllableStructure.value.trim().split(',').map(s => s.trim().toUpperCase());
+            languageState.phonology.tones.enabled = UI.controls.tonesEnabled.checked;
+            languageState.phonology.tones.count = parseInt(UI.controls.tonesCount.value, 10);
             languageState.lexicon.semanticFields = UI.controls.semanticFields.value.trim().split(',');
             languageState.lexicon.rootCount = parseInt(UI.controls.lexiconSize.value, 10);
+            languageState.lexicon.loanwords.enabled = UI.controls.loanwordsEnabled.checked;
             languageState.morphoSyntax.wordOrder = UI.controls.wordOrder.value;
             languageState.morphoSyntax.caseMarking = document.querySelector('input[name="case-marking"]:checked').value;
+            languageState.morphoSyntax.grammaticalGender = document.querySelector('input[name="grammatical-gender"]:checked').value;
+            languageState.morphoSyntax.genderAgreement = UI.controls.genderAgreement.checked;
             languageState.morphoSyntax.irregularityRate = parseInt(UI.controls.irregularityRate.value, 10) / 100;
 
             // Dynamic rules and morphemes
@@ -538,10 +710,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateGrammarSummary() {
             const { phonology, morphoSyntax } = languageState;
+            const genderMap = { 'none': 'なし', 'mf': '男性/女性', 'mfn': '男性/女性/中性' };
+            const toneSummary = phonology.tones.enabled ? `あり (${phonology.tones.count}種)` : 'なし';
+
             UI.display.grammarSummary.innerHTML = `
                 <ul>
                     <li><b>基本語順:</b> ${morphoSyntax.wordOrder}</li>
                     <li><b>格標示:</b> ${morphoSyntax.caseMarking}</li>
+                    <li><b>文法性:</b> ${genderMap[morphoSyntax.grammaticalGender]} (${morphoSyntax.genderAgreement ? '一致あり' : '一致なし'})</li>
+                    <li><b>声調:</b> ${toneSummary}</li>
                     <li><b>音節構造:</b> ${phonology.syllableStructures.join(', ')}</li>
                     <li><b>不規則性:</b> ${Math.round(morphoSyntax.irregularityRate * 100)}%</li>
                 </ul>
@@ -561,6 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${word.roman}</td>
                     <td>${word.pos}</td>
                     <td>${word.meaning}</td>
+                    <td>${word.gender || '—'}</td>
                 `;
                 fragment.appendChild(row);
             });
@@ -616,6 +794,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event.target.id === 'irregularity-rate') {
                 UI.controls.irregularityRateValue.textContent = `${event.target.value}%`;
             }
+            UIManager.updateStateFromUI();
+            UIManager.updateAllDisplays();
+        },
+
+        handleTonesToggle() {
+            const isEnabled = UI.controls.tonesEnabled.checked;
+            UI.controls.tonesControls.classList.toggle('hidden', !isEnabled);
+            UI.controls.tonesCountValue.textContent = UI.controls.tonesCount.value;
             UIManager.updateStateFromUI();
             UIManager.updateAllDisplays();
         },
@@ -676,9 +862,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         exportCSV() {
             const { dictionary } = languageState.generated;
-            let csvContent = "ipa,roman,pos,meaning\n";
+            let csvContent = "ipa,roman,pos,meaning,gender\n";
             dictionary.forEach(word => {
-                csvContent += `"${word.ipa}","${word.roman}","${word.pos}","${word.meaning}"\n`;
+                const gender = word.gender || '';
+                csvContent += `"${word.ipa}","${word.roman}","${word.pos}","${word.meaning}","${gender}"\n`;
             });
             UIManager.download('lexicon.csv', csvContent);
         }
