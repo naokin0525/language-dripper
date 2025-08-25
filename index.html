@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conlang Generator - 人工言語生成ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* For modern browsers */
+        :root {
+            --bg-color: #1a202c;
+            --text-color: #e2e8f0;
+            --panel-bg: #2d3748;
+            --control-bg: #4a5568;
+            --accent-color: #4299e1;
+            --border-color: #4a5568;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        }
+        .panel {
+            background-color: var(--panel-bg);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+        }
+        details > summary {
+            cursor: pointer;
+            font-weight: 600;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            transition: background-color 0.2s;
+        }
+        details > summary:hover {
+            background-color: var(--control-bg);
+        }
+        details[open] > summary {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        input[type="text"], textarea, select, input[type="number"] {
+            width: 100%;
+            background-color: var(--control-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+            color: var(--text-color);
+        }
+        textarea {
+            min-height: 100px;
+            font-family: "Menlo", "Monaco", monospace;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2b6cb0;
+        }
+        .btn-secondary {
+            background-color: var(--control-bg);
+        }
+        .btn-secondary:hover {
+            background-color: #718096;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+        }
+        th {
+            background-color: var(--control-bg);
+        }
+    </style>
+</head>
+<body class="p-4 lg:p-8">
+
+    <header class="text-center mb-8">
+        <h1 class="text-4xl font-bold">Conlang Generator</h1>
+        <p class="text-lg text-gray-400">インタラクティブな人工言語生成ツール</p>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Left Column: Controls -->
+        <div id="controls-panel" class="panel flex flex-col gap-6">
+            <h2 class="text-2xl font-bold border-b border-gray-600 pb-2">コントロールパネル</h2>
+
+            <!-- Phonology Section -->
+            <details open>
+                <summary class="text-xl">I. 音声・音韻論</summary>
+                <div class="flex flex-col gap-4 pl-4 border-l border-gray-600">
+                    <div>
+                        <label for="consonants">子音 (IPA, スペース区切り)</label>
+                        <textarea id="consonants">p t k b d g m n s z h r j w</textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button class="btn btn-secondary text-sm" data-preset="japanese">日本語風</button>
+                            <button class="btn btn-secondary text-sm" data-preset="english">英語風</button>
+                            <button class="btn btn-secondary text-sm" data-preset="spanish">スペイン語風</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="vowels">母音 (IPA, スペース区切り)</label>
+                        <textarea id="vowels">a i u e o</textarea>
+                    </div>
+                    <div>
+                        <label for="syllable-structure">音節構造 (カンマ区切り)</label>
+                        <input type="text" id="syllable-structure" value="CV,V,CVC">
+                    </div>
+                    <!-- Phonological rules (simplified for this example) -->
+                    <div>
+                        <label>音韻変化ルール (例: n > m / _p)</label>
+                        <div id="phonology-rules-list"></div>
+                        <button id="add-phonology-rule" class="btn btn-secondary mt-2 text-sm">+ ルール追加</button>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Lexicon Section -->
+            <details open>
+                <summary class="text-xl">II. 語彙</summary>
+                 <div class="flex flex-col gap-4 pl-4 border-l border-gray-600">
+                    <div>
+                        <label for="semantic-fields">意味分野 (カンマ区切り)</label>
+                        <textarea id="semantic-fields">自然,動物,感情,行動,道具,社会,思考</textarea>
+                    </div>
+                    <div>
+                        <label for="lexicon-size">生成する語根の数</label>
+                        <input type="number" id="lexicon-size" value="100" min="10" max="1000" class="w-full">
+                    </div>
+                    <button id="generate-lexicon" class="btn btn-primary">語彙を生成</button>
+                </div>
+            </details>
+
+            <!-- Morphology & Syntax Section -->
+            <details open>
+                <summary class="text-xl">III. 形態論・統語論</summary>
+                <div class="flex flex-col gap-4 pl-4 border-l border-gray-600">
+                    <div>
+                        <label for="word-order">基本語順</label>
+                        <select id="word-order">
+                            <option value="SOV" selected>SOV</option>
+                            <option value="SVO">SVO</option>
+                            <option value="VSO">VSO</option>
+                            <option value="VOS">VOS</option>
+                            <option value="OVS">OVS</option>
+                            <option value="OSV">OSV</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>格標示</label>
+                        <div class="flex gap-4">
+                            <label><input type="radio" name="case-marking" value="suffix" checked> 接尾辞</label>
+                            <label><input type="radio" name="case-marking" value="prefix"> 接頭辞</label>
+                            <label><input type="radio" name="case-marking" value="postposition"> 後置詞</label>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="irregularity-rate">不規則性 (0-20%)</label>
+                        <input type="range" id="irregularity-rate" min="0" max="20" value="5" class="w-full">
+                        <span id="irregularity-rate-value" class="text-sm">5%</span>
+                    </div>
+                    <!-- Derivational Morphology (simplified) -->
+                    <div>
+                        <label>派生形態論 (例: -ness, un-)</label>
+                        <div id="derivational-morphemes-list"></div>
+                        <button id="add-morpheme" class="btn btn-secondary mt-2 text-sm">+ 接辞追加</button>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- Right Column: Display -->
+        <div id="display-panel" class="panel flex flex-col gap-6">
+            <h2 class="text-2xl font-bold border-b border-gray-600 pb-2">ディスプレイパネル</h2>
+
+            <div class="flex gap-2">
+                <button id="export-json" class="btn btn-secondary">JSONでエクスポート</button>
+                <button id="export-csv" class="btn btn-secondary">CSVでエクスポート</button>
+            </div>
+
+            <!-- Grammar Summary -->
+            <div>
+                <h3 class="text-xl font-semibold mb-2">文法概要</h3>
+                <div id="grammar-summary" class="prose prose-invert text-gray-300"></div>
+            </div>
+
+            <!-- Example Sentences -->
+            <div>
+                <h3 class="text-xl font-semibold mb-2">例文</h3>
+                <div id="example-sentences" class="bg-gray-800 p-4 rounded"></div>
+            </div>
+
+            <!-- Lexicon -->
+            <div>
+                <h3 class="text-xl font-semibold mb-2">辞書</h3>
+                <div class="overflow-auto max-h-96">
+                    <table id="lexicon-table">
+                        <thead>
+                            <tr>
+                                <th>IPA</th>
+                                <th>ローマ字</th>
+                                <th>品詞</th>
+                                <th>意味</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- 1. STATE MANAGEMENT ---
+    // Centralized state object for the entire application
+    const languageState = {
+        phonology: {
+            consonants: [],
+            vowels: [],
+            syllableStructures: [],
+            phonologicalRules: [],
+        },
+        lexicon: {
+            semanticFields: [],
+            rootCount: 100,
+        },
+        morphoSyntax: {
+            wordOrder: 'SOV',
+            caseMarking: 'suffix',
+            irregularityRate: 0.05,
+            derivationalMorphemes: [],
+        },
+        generated: {
+            dictionary: [],
+            // Simple grammar for sentence generation
+            grammar: {
+                subjectMarker: 'ga',
+                objectMarker: 'wo',
+                verbTense: 'ru'
+            }
+        }
+    };
+
+    // --- 2. DOM ELEMENT CACHE ---
+    // Caching frequently accessed DOM elements for performance
+    const UI = {
+        controls: {
+            consonants: document.getElementById('consonants'),
+            vowels: document.getElementById('vowels'),
+            syllableStructure: document.getElementById('syllable-structure'),
+            phonologyRulesList: document.getElementById('phonology-rules-list'),
+            addPhonologyRuleBtn: document.getElementById('add-phonology-rule'),
+            presetBtns: document.querySelectorAll('[data-preset]'),
+            semanticFields: document.getElementById('semantic-fields'),
+            lexiconSize: document.getElementById('lexicon-size'),
+            generateLexiconBtn: document.getElementById('generate-lexicon'),
+            wordOrder: document.getElementById('word-order'),
+            caseMarking: document.querySelectorAll('input[name="case-marking"]'),
+            irregularityRate: document.getElementById('irregularity-rate'),
+            irregularityRateValue: document.getElementById('irregularity-rate-value'),
+            derivationalMorphemesList: document.getElementById('derivational-morphemes-list'),
+            addMorphemeBtn: document.getElementById('add-morpheme'),
+        },
+        display: {
+            grammarSummary: document.getElementById('grammar-summary'),
+            exampleSentences: document.getElementById('example-sentences'),
+            lexiconTableBody: document.querySelector('#lexicon-table tbody'),
+        },
+        export: {
+            jsonBtn: document.getElementById('export-json'),
+            csvBtn: document.getElementById('export-csv'),
+        }
+    };
+
+    // --- 3. CORE LOGIC MODULES ---
+
+    /**
+     * Phonology Module: Handles sound systems and word generation.
+     */
+    const Phonology = {
+        // Simple IPA to Romanization mapping (can be expanded)
+        ipaToRomanMap: {
+            'p': 'p', 't': 't', 'k': 'k', 'b': 'b', 'd': 'd', 'g': 'g', 'm': 'm', 'n': 'n',
+            's': 's', 'z': 'z', 'h': 'h', 'r': 'r', 'j': 'y', 'w': 'w', 'a': 'a', 'i': 'i',
+            'u': 'u', 'e': 'e', 'o': 'o', 'ʃ': 'sh', 'ʧ': 'ch', 'ʤ': 'j', 'ŋ': 'ng', 'θ': 'th', 'ð': 'dh'
+        },
+
+        romanize(ipaStr) {
+            return Array.from(ipaStr).map(char => this.ipaToRomanMap[char] || char).join('');
+        },
+
+        generateWord() {
+            const { consonants, vowels, syllableStructures } = languageState.phonology;
+            if (consonants.length === 0 || vowels.length === 0 || syllableStructures.length === 0) return null;
+
+            const structure = syllableStructures[Math.floor(Math.random() * syllableStructures.length)];
+            let word = '';
+            for (const char of structure) {
+                if (char === 'C') {
+                    word += consonants[Math.floor(Math.random() * consonants.length)];
+                } else if (char === 'V') {
+                    word += vowels[Math.floor(Math.random() * vowels.length)];
+                }
+            }
+            return this.applyPhonologicalRules(word);
+        },
+
+        applyPhonologicalRules(word) {
+            let newWord = word;
+            languageState.phonology.phonologicalRules.forEach(rule => {
+                // Rule format: "A > B / C_D" (A becomes B between C and D)
+                // This is a simplified implementation using regex.
+                try {
+                    const [match, replacement] = rule.from.split('>').map(s => s.trim());
+                    const context = rule.to;
+
+                    // Contexts: _p (before p), p_ (after p), V_V (between vowels)
+                    let regex;
+                    if (context.includes('_')) {
+                        const [before, after] = context.split('_');
+                        // Positive lookbehind and lookahead
+                        const regexBefore = before ? `(?<=${before.replace('V', `[${languageState.phonology.vowels.join('')}]`)})` : '';
+                        const regexAfter = after ? `(?=${after.replace('V', `[${languageState.phonology.vowels.join('')}]`)})` : '';
+                        regex = new RegExp(`${regexBefore}${match}${regexAfter}`, 'g');
+                    } else {
+                        // Simple replacement if context is unclear
+                        regex = new RegExp(match, 'g');
+                    }
+                    newWord = newWord.replace(regex, replacement);
+                } catch(e) {
+                    console.error("Invalid phonological rule:", rule, e);
+                }
+            });
+            return newWord;
+        }
+    };
+
+    /**
+     * Lexicon Module: Handles dictionary creation and management.
+     */
+    const Lexicon = {
+        generate() {
+            const { rootCount, semanticFields } = languageState.lexicon;
+            const newDictionary = [];
+            const pos = ['noun', 'verb', 'adjective'];
+
+            for (let i = 0; i < rootCount; i++) {
+                const ipa = Phonology.generateWord();
+                if (!ipa) continue;
+
+                const roman = Phonology.romanize(ipa);
+                const wordPos = pos[Math.floor(Math.random() * pos.length)];
+                const meaning = semanticFields[Math.floor(Math.random() * semanticFields.length)];
+
+                newDictionary.push({ ipa: `/${ipa}/`, roman, pos: wordPos, meaning });
+            }
+
+            // Apply derivational morphology
+            const derivedWords = [];
+            languageState.morphoSyntax.derivationalMorphemes.forEach(morpheme => {
+                newDictionary.forEach(word => {
+                     // Simple logic: apply derivation to a subset of words
+                    if (Math.random() < 0.3) {
+                         const newWord = MorphoSyntax.applyDerivation(word, morpheme);
+                         if(newWord) derivedWords.push(newWord);
+                    }
+                });
+            });
+
+            languageState.generated.dictionary = [...newDictionary, ...derivedWords];
+        }
+    };
+
+    /**
+    * Morphology and Syntax Module
+    */
+    const MorphoSyntax = {
+        applyDerivation(word, morpheme) {
+            let newIpa, newRoman;
+            if (morpheme.type === 'prefix') {
+                newIpa = morpheme.form + word.ipa.slice(1, -1);
+                newRoman = Phonology.romanize(morpheme.form) + word.roman;
+            } else { // suffix
+                newIpa = word.ipa.slice(1, -1) + morpheme.form;
+                newRoman = word.roman + Phonology.romanize(morpheme.form);
+            }
+            return {
+                ipa: `/${newIpa}/`,
+                roman: newRoman,
+                pos: morpheme.func,
+                meaning: `${word.meaning} (${morpheme.func})`
+            };
+        },
+
+        generateSentence() {
+            const { dictionary } = languageState.generated;
+            const nouns = dictionary.filter(w => w.pos === 'noun');
+            const verbs = dictionary.filter(w => w.pos === 'verb');
+            if (nouns.length < 2 || verbs.length < 1) return "辞書に単語が不足しています。";
+
+            const subject = nouns[Math.floor(Math.random() * nouns.length)];
+            let object = nouns[Math.floor(Math.random() * nouns.length)];
+            while (object === subject) { // Ensure subject and object are different
+                 object = nouns[Math.floor(Math.random() * nouns.length)];
+            }
+            const verb = verbs[Math.floor(Math.random() * verbs.length)];
+
+            const { subjectMarker, objectMarker, verbTense } = languageState.generated.grammar;
+            const { wordOrder, caseMarking } = languageState.morphoSyntax;
+
+            let s, o, v;
+
+            switch (caseMarking) {
+                case 'suffix':
+                    s = subject.roman + '-' + subjectMarker;
+                    o = object.roman + '-' + objectMarker;
+                    v = verb.roman + '-' + verbTense;
+                    break;
+                case 'prefix':
+                    s = subjectMarker + '-' + subject.roman;
+                    o = objectMarker + '-' + object.roman;
+                    v = verb.roman + '-' + verbTense; // Tense is usually a suffix
+                    break;
+                case 'postposition':
+                    s = subject.roman + ' ' + subjectMarker;
+                    o = object.roman + ' ' + objectMarker;
+                    v = verb.roman + ' ' + verbTense;
+                    break;
+            }
+
+            const components = { S: s, O: o, V: v };
+            const orderedSentence = wordOrder.split('').map(c => components[c]).join(' ');
+
+            return `${orderedSentence}. ('${subject.meaning}' ${object.meaning} ${verb.meaning})`;
+        }
+    };
+
+
+    // --- 4. UI UPDATE & EVENT HANDLING ---
+
+    /**
+     * UI Module: Handles all interactions with the DOM.
+     */
+    const UIManager = {
+        init() {
+            this.bindEvents();
+            this.updateStateFromUI();
+            this.updateAllDisplays();
+        },
+
+        bindEvents() {
+            // Bind all event listeners to their handlers
+            Object.keys(UI.controls).forEach(key => {
+                const el = UI.controls[key];
+                // Check if el is a single element with a nodeName
+                if (el && el.nodeName) {
+                    if (el.nodeName === 'TEXTAREA' || el.nodeName === 'SELECT' ||
+                        (el.nodeName === 'INPUT' && (el.type === 'text' || el.type === 'number' || el.type === 'range'))) {
+                        el.addEventListener('input', this.handleInputChange);
+                    }
+                }
+                // Check if el is a NodeList (for radio buttons or preset buttons)
+                else if (el && el.length > 0) {
+                    el.forEach(item => {
+                        if (item.type === 'radio') {
+                             item.addEventListener('change', this.handleInputChange);
+                        } else if (item.dataset.preset) {
+                             item.addEventListener('click', this.handlePresetClick);
+                        }
+                    });
+                }
+            });
+
+            UI.controls.generateLexiconBtn.addEventListener('click', this.handleGenerateLexicon);
+            UI.controls.addPhonologyRuleBtn.addEventListener('click', () => this.addDynamicInput('phonologyRule'));
+            UI.controls.addMorphemeBtn.addEventListener('click', () => this.addDynamicInput('morpheme'));
+
+            UI.export.jsonBtn.addEventListener('click', this.exportJSON);
+            UI.export.csvBtn.addEventListener('click', this.exportCSV);
+        },
+
+        updateStateFromUI() {
+            // Syncs the languageState object with the current values in the UI controls
+            languageState.phonology.consonants = UI.controls.consonants.value.trim().split(/\s+/);
+            languageState.phonology.vowels = UI.controls.vowels.value.trim().split(/\s+/);
+            languageState.phonology.syllableStructures = UI.controls.syllableStructure.value.trim().split(',').map(s => s.trim().toUpperCase());
+            languageState.lexicon.semanticFields = UI.controls.semanticFields.value.trim().split(',');
+            languageState.lexicon.rootCount = parseInt(UI.controls.lexiconSize.value, 10);
+            languageState.morphoSyntax.wordOrder = UI.controls.wordOrder.value;
+            languageState.morphoSyntax.caseMarking = document.querySelector('input[name="case-marking"]:checked').value;
+            languageState.morphoSyntax.irregularityRate = parseInt(UI.controls.irregularityRate.value, 10) / 100;
+
+            // Dynamic rules and morphemes
+            languageState.phonology.phonologicalRules = [];
+            document.querySelectorAll('.phonology-rule-item').forEach(item => {
+                const from = item.querySelector('.rule-from').value;
+                const to = item.querySelector('.rule-to').value;
+                if(from && to) languageState.phonology.phonologicalRules.push({ from, to });
+            });
+
+            languageState.morphoSyntax.derivationalMorphemes = [];
+            document.querySelectorAll('.morpheme-item').forEach(item => {
+                const type = item.querySelector('.morpheme-type').value;
+                const form = item.querySelector('.morpheme-form').value;
+                const func = item.querySelector('.morpheme-func').value;
+                if(form && func) languageState.morphoSyntax.derivationalMorphemes.push({ type, form, func });
+            });
+        },
+
+        updateAllDisplays() {
+            // Main function to re-render all display panels based on the current state
+            this.updateGrammarSummary();
+            this.updateDictionaryView();
+            this.updateExampleSentences();
+        },
+
+        updateGrammarSummary() {
+            const { phonology, morphoSyntax } = languageState;
+            UI.display.grammarSummary.innerHTML = `
+                <ul>
+                    <li><b>基本語順:</b> ${morphoSyntax.wordOrder}</li>
+                    <li><b>格標示:</b> ${morphoSyntax.caseMarking}</li>
+                    <li><b>音節構造:</b> ${phonology.syllableStructures.join(', ')}</li>
+                    <li><b>不規則性:</b> ${Math.round(morphoSyntax.irregularityRate * 100)}%</li>
+                </ul>
+            `;
+        },
+
+        updateDictionaryView() {
+            const { dictionary } = languageState.generated;
+            const tableBody = UI.display.lexiconTableBody;
+            tableBody.innerHTML = ''; // Clear existing rows
+
+            const fragment = document.createDocumentFragment();
+            dictionary.forEach(word => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${word.ipa}</td>
+                    <td>${word.roman}</td>
+                    <td>${word.pos}</td>
+                    <td>${word.meaning}</td>
+                `;
+                fragment.appendChild(row);
+            });
+            tableBody.appendChild(fragment);
+        },
+
+        updateExampleSentences() {
+            UI.display.exampleSentences.innerHTML = '';
+            for(let i=0; i<3; i++) {
+                const p = document.createElement('p');
+                p.textContent = MorphoSyntax.generateSentence();
+                UI.display.exampleSentences.appendChild(p);
+            }
+        },
+
+        addDynamicInput(type) {
+             let div;
+             if (type === 'phonologyRule') {
+                div = document.createElement('div');
+                div.className = 'phonology-rule-item flex gap-2 items-center mb-2';
+                div.innerHTML = `
+                    <input type="text" class="rule-from w-1/3" placeholder="n > m">
+                    <span>/</span>
+                    <input type="text" class="rule-to w-1/3" placeholder="_p">
+                    <button class="btn btn-secondary text-sm remove-btn">X</button>
+                `;
+                UI.controls.phonologyRulesList.appendChild(div);
+            } else if (type === 'morpheme') {
+                div = document.createElement('div');
+                div.className = 'morpheme-item flex gap-2 items-center mb-2';
+                div.innerHTML = `
+                    <select class="morpheme-type w-1/4">
+                        <option value="prefix">接頭辞</option>
+                        <option value="suffix">接尾辞</option>
+                    </select>
+                    <input type="text" class="morpheme-form w-1/4" placeholder="例: un-">
+                    <input type="text" class="morpheme-func w-1/4" placeholder="例: 否定">
+                    <button class="btn btn-secondary text-sm remove-btn">X</button>
+                `;
+                UI.controls.derivationalMorphemesList.appendChild(div);
+            }
+            // Add remove functionality
+            div.querySelector('.remove-btn').addEventListener('click', (e) => {
+                e.target.parentElement.remove();
+                this.handleInputChange(e);
+            });
+            // Add event listener to new inputs
+            div.querySelectorAll('input, select').forEach(el => el.addEventListener('input', this.handleInputChange));
+        },
+
+        // --- EVENT HANDLERS ---
+        handleInputChange(event) {
+            if (event.target.id === 'irregularity-rate') {
+                UI.controls.irregularityRateValue.textContent = `${event.target.value}%`;
+            }
+            UIManager.updateStateFromUI();
+            UIManager.updateAllDisplays();
+        },
+
+        handlePresetClick(event) {
+            const preset = event.target.dataset.preset;
+            const presets = {
+                japanese: {
+                    consonants: 'p t k b d g m n s z h r j w',
+                    vowels: 'a i u e o',
+                    structure: 'CV,V,CVN'
+                },
+                english: {
+                    consonants: 'p t k b d g m n l r s z ʃ ʒ h w j θ ð f v ʧ ʤ',
+                    vowels: 'i ɪ e æ u ʊ o ɔ a ɑ ə',
+                    structure: 'CVC,CCV,CV,V,VCC'
+                },
+                spanish: {
+                    consonants: 'p t k b d g m n l r s j w f x',
+                    vowels: 'a e i o u',
+                    structure: 'CV,CVC,VC'
+                }
+            };
+            if (presets[preset]) {
+                UI.controls.consonants.value = presets[preset].consonants;
+                UI.controls.vowels.value = presets[preset].vowels;
+                UI.controls.syllableStructure.value = presets[preset].structure;
+                UIManager.updateStateFromUI();
+                UIManager.updateAllDisplays();
+            }
+        },
+
+        handleGenerateLexicon() {
+            UIManager.updateStateFromUI();
+            Lexicon.generate();
+            UIManager.updateAllDisplays();
+        },
+
+        // --- EXPORT FUNCTIONS ---
+        download(filename, text) {
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        },
+
+        exportJSON() {
+            const dataToExport = {
+                grammar: languageState.morphoSyntax,
+                phonology: languageState.phonology,
+                lexicon: languageState.generated.dictionary,
+            };
+            UIManager.download('language.json', JSON.stringify(dataToExport, null, 2));
+        },
+
+        exportCSV() {
+            const { dictionary } = languageState.generated;
+            let csvContent = "ipa,roman,pos,meaning\n";
+            dictionary.forEach(word => {
+                csvContent += `"${word.ipa}","${word.roman}","${word.pos}","${word.meaning}"\n`;
+            });
+            UIManager.download('lexicon.csv', csvContent);
+        }
+    };
+
+    // --- 5. INITIALIZATION ---
+    UIManager.init();
+
+});
+</script>
+
+</body>
+</html>
