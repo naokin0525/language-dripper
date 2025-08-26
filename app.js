@@ -86,6 +86,8 @@
 				.join("");
 		},
 
+
+
 		generateWord() {
 			const { consonants, vowels, syllableStructures, tones } =
 				languageState.phonology;
@@ -121,6 +123,11 @@
 
 		applyPhonologicalRules(word) {
 			let newWord = word;
+			const { vowels, consonants } = languageState.phonology;
+			// CHANGE: Create vowel and consonant class strings for regex once.
+			const vClass = `[${vowels.join("")}]`;
+			const cClass = `[${consonants.join("")}]`;
+
 			languageState.phonology.phonologicalRules.forEach((rule) => {
 				try {
 					const [match, replacement] = rule.from.split(">").map((s) => s.trim());
@@ -128,8 +135,9 @@
 					let regex;
 					if (context.includes("_")) {
 						const [before, after] = context.split("_");
-						const regexBefore = before ? `(?<=${before.replace("V", `[${languageState.phonology.vowels.join("")}]`)})` : "";
-						const regexAfter = after ? `(?=${after.replace("V", `[${languageState.phonology.vowels.join("")}]`)})` : "";
+						// CHANGE: Use global replacement for V and C in contexts to handle cases like V_V.
+						const regexBefore = before ? `(?<=${before.replace(/V/g, vClass).replace(/C/g, cClass)})` : "";
+						const regexAfter = after ? `(?=${after.replace(/V/g, vClass).replace(/C/g, cClass)})` : "";
 						regex = new RegExp(`${regexBefore}${match}${regexAfter}`, "g");
 					} else {
 						regex = new RegExp(match, "g");
@@ -260,6 +268,12 @@
 			const generatedRomans = new Set();
 			const usedMeanings = new Set();
 
+			// Guard against empty semantic fields to prevent infinite loops
+			if (semanticFields.length === 0 || (semanticFields.length === 1 && semanticFields[0] === "")) {
+				languageState.generated.dictionary = [];
+				return;
+			}
+
 			const meaningsToGenerate = [];
 			let fieldIndex = 0;
 			while (meaningsToGenerate.length < rootCount) {
@@ -274,7 +288,7 @@
 						usedMeanings.add(chosenMeaning);
 					}
 				} else {
-					if (!usedMeanings.has(fieldName)) {
+					if (!usedMeanings.has(fieldName) && fieldName) { // Ensure fieldName is not empty
 						meaningsToGenerate.push(fieldName);
 						usedMeanings.add(fieldName);
 					}
@@ -291,7 +305,8 @@
 					if (!ipa) break;
 					roman = Phonology.romanize(ipa);
 					attempts++;
-				} while (generatedRomans.has(roman) && attempts < 10);
+				// CHANGE: Increased attempt limit for more robust word generation
+				} while (generatedRomans.has(roman) && attempts < 50);
 
 				if (!ipa || generatedRomans.has(roman)) continue;
 				generatedRomans.add(roman);
@@ -486,27 +501,26 @@
 		},
 
 		bindEventListeners() {
+			// CHANGE: Consolidated simple input listeners to call handleInputChange for better maintainability.
 			const controlsToListen = [
 				UI.consonants, UI.vowels, UI.syllableStructure, UI.semanticFields, UI.lexiconSize,
 				UI.wordOrder, UI.adjectiveOrder, UI.tonesEnabled, UI.loanwordsEnabled, UI.genderAgreement,
 			];
-			controlsToListen.forEach((el) =>
-				el.addEventListener("input", () => {
-					this.updateStateFromUI();
-					this.updateAllDisplays();
-				})
-			);
+			controlsToListen.forEach((el) => el.addEventListener("input", () => this.handleInputChange()));
 
 			UI.caseMarking.forEach((el) => el.addEventListener("change", () => this.handleInputChange()));
 			UI.grammaticalGender.forEach((el) => el.addEventListener("change", () => this.handleInputChange()));
 			UI.presetBtns.forEach((el) => el.addEventListener("click", (e) => this.handlePresetClick(e)));
 			UI.tonesCount.addEventListener("input", (e) => this.handleTonesToggle(e));
-			UI.irregularityRate.addEventListener("input", (e) => this.handleIrregularityRate(e)));
+			// FIX: Removed extra closing parenthesis that caused a syntax error.
+			UI.irregularityRate.addEventListener("input", (e) => this.handleIrregularityRate(e));
 			UI.generateLexicon.addEventListener("click", () => this.handleGenerateLexicon());
-			UI.addPhonologyRule.addEventListener("click", () => this.addDynamicInput("phonologyRule")));
-			UI.addMorpheme.addEventListener("click", () => this.addDynamicInput("morpheme")));
+			UI.addPhonologyRule.addEventListener("click", () => this.addDynamicInput("phonologyRule"));
+			UI.addMorpheme.addEventListener("click", () => this.addDynamicInput("morpheme"));
 			UI.exportJson.addEventListener("click", () => this.exportJSON());
 			UI.exportCsv.addEventListener("click", () => this.exportCSV());
+			
+			// Event delegation for dynamic elements
 			UI.phonologyRulesList.addEventListener("click", (e) => this.handleDynamicRemove(e));
 			UI.derivationalMorphemesList.addEventListener("click", (e) => this.handleDynamicRemove(e));
 			UI.phonologyRulesList.addEventListener("input", () => this.handleInputChange());
@@ -514,12 +528,12 @@
 		},
 
 		updateStateFromUI() {
-			languageState.phonology.consonants = UI.consonants.value.trim().split(/\s+/);
-			languageState.phonology.vowels = UI.vowels.value.trim().split(/\s+/);
-			languageState.phonology.syllableStructures = UI.syllableStructure.value.trim().split(",").map((s) => s.trim().toUpperCase());
+			languageState.phonology.consonants = UI.consonants.value.trim().split(/\s+/).filter(Boolean);
+			languageState.phonology.vowels = UI.vowels.value.trim().split(/\s+/).filter(Boolean);
+			languageState.phonology.syllableStructures = UI.syllableStructure.value.trim().split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
 			languageState.phonology.tones.enabled = UI.tonesEnabled.checked;
 			languageState.phonology.tones.count = parseInt(UI.tonesCount.value, 10);
-			languageState.lexicon.semanticFields = UI.semanticFields.value.trim().split(",");
+			languageState.lexicon.semanticFields = UI.semanticFields.value.trim().split(",").map(s => s.trim()).filter(Boolean);
 			languageState.lexicon.rootCount = parseInt(UI.lexiconSize.value, 10);
 			languageState.lexicon.loanwords.enabled = UI.loanwordsEnabled.checked;
 			languageState.morphoSyntax.wordOrder = UI.wordOrder.value;
@@ -632,11 +646,13 @@
 
 		updateExampleSentences() {
 			UI.exampleSentences.textContent = "";
+			const fragment = document.createDocumentFragment();
 			for (let i = 0; i < 3; i++) {
 				const p = document.createElement("p");
 				p.textContent = MorphoSyntax.generateSentence();
-				UI.exampleSentences.appendChild(p);
+				fragment.appendChild(p);
 			}
+			UI.exampleSentences.appendChild(fragment);
 		},
 
 		addDynamicInput(type) {
@@ -676,6 +692,7 @@
 		},
 
 		handleInputChange() { this.updateStateFromUI(); this.updateAllDisplays(); },
+		
 		handleTonesToggle(event) {
 			const isEnabled = UI.tonesEnabled.checked;
 			UI.tonesControls.classList.toggle("hidden", !isEnabled);
@@ -684,12 +701,14 @@
 			UI.tonesCountValue.textContent = value;
 			this.handleInputChange(event);
 		},
+		
 		handleIrregularityRate(event) {
 			const value = event.target.value;
 			UI.irregularityRate.setAttribute("aria-valuetext", `${value}%`);
 			UI.irregularityRateValue.textContent = `${value}%`;
 			this.handleInputChange(event);
 		},
+
 		handlePresetClick(event) {
 			const preset = event.target.dataset.preset;
 			const presets = {
@@ -704,17 +723,20 @@
 				this.handleInputChange();
 			}
 		},
+		
 		handleGenerateLexicon() {
 			this.updateStateFromUI();
 			Lexicon.generate();
 			this.updateAllDisplays();
 		},
+		
 		handleDynamicRemove(event) {
 			if (event.target.classList.contains("remove-btn")) {
 				event.target.closest(".phonology-rule-item, .morpheme-item").remove();
 				this.handleInputChange();
 			}
 		},
+		
 		download(filename, text) {
 			const element = document.createElement("a");
 			element.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(text));
@@ -724,6 +746,7 @@
 			element.click();
 			document.body.removeChild(element);
 		},
+		
 		exportJSON() {
 			const dataToExport = {
 				grammar: languageState.morphoSyntax,
@@ -733,6 +756,7 @@
 			};
 			this.download("language.json", JSON.stringify(dataToExport, null, 2));
 		},
+		
 		exportCSV() {
 			const { dictionary } = languageState.generated;
 			let csvContent = "ipa,roman,pos,meaning,gender\n";
